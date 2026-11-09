@@ -12,8 +12,8 @@
   "main": "index.js",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node scripts/build.mjs && node --test test/",
-    "test:watch": "node scripts/build.mjs && node --test --watch test/",
+    "test": "node scripts/build.mjs && node --test \"test/*.test.mjs\"",
+    "test:watch": "node scripts/build.mjs && node --test --watch \"test/*.test.mjs\"",
     "package": "node scripts/package.mjs"
   },
   "devDependencies": {
