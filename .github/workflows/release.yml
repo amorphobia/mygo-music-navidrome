@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build, test and publish the plugin archive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Check that the tag matches the manifest version
+        run: |
+          version=$(node -p "JSON.parse(require('fs').readFileSync('plugin.json', 'utf8')).version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match plugin.json version $version."
+            exit 1
+          fi
+
+      - name: Build the plugin bundle
+        run: npm run build
+
+      - name: Verify the committed index.js is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- index.js)" ]; then
+            echo "::error file=index.js::index.js is out of date with src/. Run 'npm run build' and commit the result before tagging."
+            git --no-pager diff --stat -- index.js || true
+            exit 1
+          fi
+          echo "index.js matches the current src/ sources."
+
+      - name: Run tests
+        run: npm test
+
+      - name: Package the plugin archive
+        run: npm run package
+
+      - name: Verify the release asset name is platform-agnostic
+        run: |
+          asset=$(basename "$(ls dist/*.zip)")
+          if echo "$asset" | grep -Eiq '(^|[-_.])(darwin|linux|windows|win32|win64|macos|osx|arm64|amd64|x86_64|x64|armv[0-9]*|aarch64)([-_.]|$)'; then
+            echo "::error::Release asset name '$asset' contains a platform word. MyGo Music only treats an asset without a platform word as universal, so keep the name amorphobia-navidrome-<version>.zip."
+            exit 1
+          fi
+          echo "Universal asset name: $asset"
+
+      - name: Create the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Navidrome ${{ github.ref_name }}
+          files: dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

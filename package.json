@@ -1,0 +1,22 @@
+{
+  "name": "mygo-music-navidrome",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Navidrome source plugin for MyGo Music with custom HTTP headers (Cloudflare Zero Trust service tokens) for the API, covers and audio",
+  "license": "AGPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/mygo-music-navidrome.git"
+  },
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs && node --test test/",
+    "test:watch": "node scripts/build.mjs && node --test --watch test/",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

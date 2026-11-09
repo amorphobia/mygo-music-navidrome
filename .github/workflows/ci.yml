@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build, verify and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Build the plugin bundle
+        run: npm run build
+
+      - name: Verify the committed index.js is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- index.js)" ]; then
+            echo "::error file=index.js::index.js is out of date with src/. Run 'npm run build' and commit the result."
+            git --no-pager diff --stat -- index.js || true
+            git --no-pager diff -- index.js | head -n 200 || true
+            exit 1
+          fi
+          echo "index.js matches the current src/ sources."
+
+      - name: Run tests
+        run: npm test
+
+      - name: Verify the release archive builds
+        run: npm run package

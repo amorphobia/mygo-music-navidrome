@@ -1,0 +1,24 @@
+# Normalize text files to LF in the repository, regardless of the author's OS.
+* text=auto eol=lf
+
+# Explicitly keep code and docs as LF.
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.go    text eol=lf
+
+# Binary artifacts and build output must never be normalized or diffed as text.
+*.zip   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+dist/** -text

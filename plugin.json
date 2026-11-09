@@ -1,0 +1,102 @@
+{
+  "id": "amorphobia-navidrome",
+  "name": "Navidrome",
+  "version": "0.1.0",
+  "minAppVersion": "0.1.20",
+  "main": "index.js",
+  "playback": "stream",
+  "permissions": {
+    "network": [
+      "*"
+    ]
+  },
+  "requestHeaders": [
+    {
+      "hosts": [
+        "{setting:server}"
+      ],
+      "kinds": [
+        "image",
+        "audio"
+      ],
+      "headers": {
+        "CF-Access-Client-Id": "{setting:cfAccessClientId}",
+        "CF-Access-Client-Secret": "{setting:cfAccessClientSecret}",
+        "Authorization": "{setting:authorization}",
+        "Cookie": "{setting:cookie}"
+      }
+    }
+  ],
+  "settings": [
+    {
+      "key": "server",
+      "label": "Server address",
+      "help": "Your server URL, e.g. https://music.example.com. Covers and audio use its headers."
+    },
+    {
+      "key": "username",
+      "label": "Username"
+    },
+    {
+      "key": "password",
+      "label": "Password",
+      "help": "An app password is safer; MyGo shows it in plain text."
+    },
+    {
+      "key": "cfAccessClientId",
+      "label": "Cloudflare Access Client ID",
+      "help": "Cloudflare Access service token's Client ID."
+    },
+    {
+      "key": "cfAccessClientSecret",
+      "label": "Cloudflare Access Client Secret",
+      "help": "The service token's Client Secret."
+    },
+    {
+      "key": "authorization",
+      "label": "Authorization header",
+      "help": "Optional Authorization value, e.g. Bearer …."
+    },
+    {
+      "key": "cookie",
+      "label": "Cookie header",
+      "help": "Optional Cookie value, e.g. a proxy session cookie."
+    },
+    {
+      "key": "customHeaders",
+      "label": "Extra headers (JSON)",
+      "help": "Optional extra headers as JSON, e.g. {\"X-Api-Key\":\"…\"}; not for covers."
+    },
+    {
+      "key": "scrobble",
+      "label": "Save listening history",
+      "help": "Enter true to save plays to the server's history; default off."
+    }
+  ],
+  "navigation": [
+    {
+      "builtin": "home"
+    },
+    {
+      "title": "Albums",
+      "page": "albums",
+      "icon": "album"
+    },
+    {
+      "title": "Artists",
+      "page": "artists",
+      "icon": "artist"
+    },
+    {
+      "title": "Playlists",
+      "page": "playlists",
+      "icon": "playlist"
+    },
+    {
+      "builtin": "liked"
+    },
+    {
+      "builtin": "savedAlbums"
+    }
+  ]
+}
