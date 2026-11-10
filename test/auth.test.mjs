@@ -15,6 +15,7 @@ import {
   md5,
   oneRequest,
   requestsOf,
+  settle,
   throwsAsync,
 } from "./helpers.mjs";
 
@@ -33,13 +34,16 @@ describe("sign in and auth", { skip: bundleSkip() }, () => {
     assertAuth(ping, CREDENTIALS);
   });
 
-  test("every request carries the Subsonic signed token, not the password", async () => {
+  test("every Subsonic request carries the signed token, not the password", async () => {
     const { plugin, requests } = await loadPlugin();
     await plugin.signIn();
     await plugin.search({ query: "night", kind: "tracks" });
     await plugin.home();
-    assert.ok(requests.length >= 3, "the plugin made several requests");
-    for (const req of requests) {
+    // signIn also warms the native detection, whose /api/song probe isn't a
+    // Subsonic request and has no auth parameters of its own.
+    const subsonic = requests.filter((req) => req.apiMethod);
+    assert.ok(subsonic.length >= 3, "the plugin made several Subsonic requests");
+    for (const req of subsonic) {
       assertAuth(req, CREDENTIALS);
       assert.ok(!("p" in req.params), `${req.apiMethod}: no p= (encrypted password) parameter`);
       const wire = req.url;
@@ -68,14 +72,20 @@ describe("sign in and auth", { skip: bundleSkip() }, () => {
 
   test("account answers null until the settings are filled in, without a request", async () => {
     const { plugin, requests } = await loadPlugin({ settings: { server: "" } });
-    assert.equal(await plugin.account(), null, "no server, no account");
+    assert.equal(plugin.account(), null, "no server, no account");
     assert.equal(requests.length, 0, "account doesn't ask a server it doesn't have");
   });
 
-  test("account answers who the settings say, without a request", async () => {
+  test("account answers at once, and warms the native detection in the background", async () => {
     const good = await loadPlugin();
-    assert.deepEqual(await good.plugin.account(), { id: "alice", name: "alice" }, "the configured account");
-    assert.equal(good.requests.length, 0, "Navidrome has no session to check, so account asks nothing");
+    const account = good.plugin.account();
+    assert.equal(account instanceof Promise, false, "account answers from the settings synchronously");
+    assert.deepEqual(account, { id: "alice", name: "alice" }, "the configured account");
+    assert.equal(apiRequests(good.requests, "ping").length, 0, "account doesn't ping the Subsonic API");
+
+    await settle();
+    assert.equal(good.requests.length, 1, "the only request is the native detection probe");
+    assert.equal(good.requests[0].pathname, "/api/song", "Navidrome's native route was probed");
   });
 
   test("missing settings are setup errors, before any request", async () => {

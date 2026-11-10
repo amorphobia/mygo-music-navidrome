@@ -966,9 +966,17 @@ export function errorCode(error) {
   return error && typeof error === "object" ? error.code : undefined;
 }
 
-/** Skip suite option when the bundle isn't built yet. */
+/** Skips the suite when the bundle isn't built yet. */
 export function bundleSkip() {
   return bundleExists() ? false : "index.js is not built yet; run `npm run build` first";
+}
+
+/**
+ * Lets fire-and-forget work settle: account() starts the native detection
+ * without awaiting it, so tests give it a turn of the event loop.
+ */
+export function settle() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 /** Titles of the sections of a Browse answer. */

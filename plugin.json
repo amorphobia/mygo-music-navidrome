@@ -78,6 +78,11 @@
       "builtin": "home"
     },
     {
+      "title": "Songs",
+      "page": "songs",
+      "icon": "note"
+    },
+    {
       "title": "Albums",
       "page": "albums",
       "icon": "album"

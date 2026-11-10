@@ -53,7 +53,7 @@ jobs:
         run: npm test
 
       - name: Package the plugin archive
-        run: npm run package
+        run: npm run package:release
 
       - name: Verify the release asset name is platform-agnostic
         run: |

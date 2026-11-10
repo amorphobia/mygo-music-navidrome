@@ -14,7 +14,8 @@
     "build": "node scripts/build.mjs",
     "test": "node scripts/build.mjs && node --test \"test/*.test.mjs\"",
     "test:watch": "node scripts/build.mjs && node --test --watch \"test/*.test.mjs\"",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "package:release": "node scripts/package.mjs --release"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

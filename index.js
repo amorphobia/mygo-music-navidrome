@@ -459,6 +459,164 @@ function entriesOf(playlist2) {
   return [];
 }
 
+// src/navidrome.js
+var PROBE_TIMEOUT_MS = 4e3;
+var LOGIN_TIMEOUT_MS = 8e3;
+var SONGS_TIMEOUT_MS = 15e3;
+var session = null;
+var pending = null;
+function forgetNativeSession() {
+  session = null;
+  pending = null;
+}
+function warmNativeSession(config = readConfig()) {
+  if (!config.server || !config.username || !config.password) return;
+  nativeSession(config).catch(() => {
+  });
+}
+function withTimeout(ms) {
+  if (typeof AbortController !== "function") return { signal: void 0, clear: () => {
+  } };
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    try {
+      controller.abort();
+    } catch {
+    }
+  }, ms);
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+async function requestWithTimeout(url, options, ms) {
+  const { signal, clear } = withTimeout(ms);
+  try {
+    return await fetch(url, { ...options, signal });
+  } finally {
+    clear();
+  }
+}
+async function looksLikeNavidrome(config) {
+  const url = new URL(`${baseUrl(config)}/api/song`);
+  url.searchParams.set("_start", "0");
+  url.searchParams.set("_end", "1");
+  const response = await requestWithTimeout(url.toString(), { headers: requestHeaders(config) }, PROBE_TIMEOUT_MS);
+  return response.status === 401;
+}
+async function nativeLogin(config) {
+  const response = await requestWithTimeout(
+    `${baseUrl(config)}/auth/login`,
+    {
+      method: "POST",
+      headers: { ...requestHeaders(config), "Content-Type": "application/json" },
+      body: JSON.stringify({ username: config.username, password: config.password })
+    },
+    LOGIN_TIMEOUT_MS
+  );
+  if (response.status !== 200) return null;
+  try {
+    const payload = await response.json();
+    return payload && typeof payload.token === "string" && payload.token ? payload.token : null;
+  } catch {
+    return null;
+  }
+}
+async function nativeSession(config = readConfig()) {
+  const key = configKey(config);
+  if (session && session.key === key) return session.token;
+  if (pending && pending.key === key) return pending.promise;
+  const promise = (async () => {
+    let token = null;
+    try {
+      if (await looksLikeNavidrome(config)) token = await nativeLogin(config);
+    } catch {
+      token = null;
+    }
+    session = { key, token };
+    return token;
+  })();
+  pending = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    if (pending && pending.promise === promise) pending = null;
+  }
+}
+async function nativeSongsRequest(config, token, offset, size) {
+  const url = new URL(`${baseUrl(config)}/api/song`);
+  url.searchParams.set("_sort", "title");
+  url.searchParams.set("_order", "ASC");
+  url.searchParams.set("_start", String(offset));
+  url.searchParams.set("_end", String(offset + size));
+  return requestWithTimeout(
+    url.toString(),
+    { headers: { ...requestHeaders(config), "X-ND-Authorization": `Bearer ${token}` } },
+    SONGS_TIMEOUT_MS
+  );
+}
+async function nativeSongsPage({ offset = 0, size = 100 } = {}, config = readConfig()) {
+  const start = Math.max(0, Number(offset) || 0);
+  let token = await nativeSession(config);
+  if (!token) return null;
+  let response;
+  try {
+    response = await nativeSongsRequest(config, token, start, size);
+    if (response.status === 401) {
+      forgetNativeSession();
+      token = await nativeSession(config);
+      if (!token) return null;
+      response = await nativeSongsRequest(config, token, start, size);
+    }
+  } catch {
+    return null;
+  }
+  if (response.status !== 200) return null;
+  let songs;
+  try {
+    songs = await response.json();
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(songs)) return null;
+  const header = (name) => response.headers && typeof response.headers.get === "function" ? response.headers.get(name) : null;
+  const refreshed = header("x-nd-authorization");
+  if (typeof refreshed === "string" && refreshed) {
+    const key = configKey(config);
+    session = { key, token: refreshed.replace(/^Bearer\s+/i, "") };
+  }
+  const totalHeader = header("x-total-count");
+  const total = totalHeader === null || totalHeader === "" ? null : Number(totalHeader);
+  return { songs, total: Number.isFinite(total) ? total : null };
+}
+function nativeArtists(song, role) {
+  const participants = song && song.participants && Array.isArray(song.participants[role]) ? song.participants[role] : [];
+  return participants.map((participant) => ({
+    id: String(participant && participant.id || ""),
+    name: String(participant && participant.name || "")
+  })).filter((artist2) => artist2.name);
+}
+function nativeTrack(song) {
+  const artists = nativeArtists(song, "artist");
+  const trackArtists = artists.length ? artists : song.artist ? [{ id: String(song.artistId || ""), name: String(song.artist) }] : [];
+  const albumArtists = nativeArtists(song, "albumartist");
+  const albumId = String(song && song.albumId || "");
+  const coverId = albumId ? /^al-/.test(albumId) ? albumId : `al-${albumId}` : "";
+  const album2 = {
+    id: albumId,
+    name: String(song && song.album || ""),
+    imageUrl: coverUrl(coverId),
+    artists: albumArtists.length ? albumArtists : song.albumArtist ? [{ id: String(song.albumArtistId || ""), name: String(song.albumArtist) }] : trackArtists,
+    released: song && song.year ? String(song.year) : ""
+  };
+  const duration = Number(song && song.duration);
+  return {
+    id: String(song && song.id || ""),
+    name: String(song && song.title || ""),
+    artists: trackArtists,
+    album: album2,
+    duration: Number.isFinite(duration) ? Math.max(0, Math.round(duration * 1e3)) : 0,
+    unavailable: Boolean(song && song.missing)
+  };
+}
+
 // src/library.js
 var SEARCH_PAGE = 30;
 var LIST_PAGE = 50;
@@ -677,6 +835,7 @@ async function played({ id }) {
 // src/browse.js
 var HOME_SIZE = 18;
 var ALBUM_PAGE = 50;
+var SONGS_PAGE = 100;
 var albumTypes = /* @__PURE__ */ new Map([
   ["newest", () => t("Recently added")],
   ["recent", () => t("Recently played")],
@@ -762,6 +921,9 @@ async function browse({ page }) {
   if (list) return albumListPage(list[1], Math.max(0, Number(list[2]) || 0));
   if (name === "artists") return artistsPage();
   if (name === "playlists") return playlistsPage();
+  if (name === "songs") return songsPage(0);
+  const songPage = /^songs:(\d+)$/.exec(name);
+  if (songPage) return songsPage(Math.max(0, Number(songPage[1]) || 0));
   throw fail("unavailable", t("There's no such page"));
 }
 async function albumsPage() {
@@ -790,6 +952,31 @@ async function albumListPage(type, offset) {
   return { title: title(), sections: [section] };
 }
 var sectionsHave = (section) => Array.isArray(section.albums) && section.albums.length > 0;
+async function songsPage(offset) {
+  const native = await nativeSongsPage({ offset, size: SONGS_PAGE });
+  let tracks;
+  let more;
+  if (native) {
+    tracks = native.songs.map(nativeTrack);
+    more = native.total === null ? tracks.length === SONGS_PAGE : offset + tracks.length < native.total;
+  } else {
+    const response = await search3({ query: "", songCount: SONGS_PAGE, songOffset: offset });
+    const songs = response && response.searchResult3 && Array.isArray(response.searchResult3.song) ? response.searchResult3.song : [];
+    tracks = songs.map(toTrack);
+    more = tracks.length === SONGS_PAGE;
+  }
+  const section = { title: t("All songs"), tracks };
+  const links = [];
+  if (offset > 0) {
+    links.push({ title: t("Previous page"), page: `songs:${Math.max(0, offset - SONGS_PAGE)}` });
+  }
+  if (more && tracks.length) {
+    links.push({ title: t("Next page"), page: `songs:${offset + SONGS_PAGE}` });
+  }
+  if (links.length) section.links = links;
+  else if (!tracks.length) section.empty = t("No songs in the library");
+  return { title: t("Songs"), sections: [section] };
+}
 async function artistsPage() {
   const response = await getArtists();
   const indexes = artistsIn(response);
@@ -952,11 +1139,12 @@ async function lyrics({ id }) {
 function account() {
   const config = readConfig();
   if (!config.server || !config.username || !config.password) return null;
+  warmNativeSession(config);
   return { id: config.username, name: config.username };
 }
 async function signIn() {
   const config = requireAccount();
-  await ping();
+  await Promise.all([ping(), nativeSession(config)]);
   return { id: config.username, name: config.username };
 }
 function signOut() {
@@ -964,12 +1152,14 @@ function signOut() {
   forgetMediaAuth();
   forgetTrackShapes();
   forgetRecent();
+  forgetNativeSession();
   return void 0;
 }
 function setSetting({ key }) {
   invalidateCaches();
   forgetMediaAuth();
   forgetTrackShapes();
+  forgetNativeSession();
   if (key === "server" || key === "username" || key === "password") forgetRecent();
   return void 0;
 }

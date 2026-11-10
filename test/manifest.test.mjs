@@ -210,6 +210,11 @@ describe("plugin.json", () => {
       manifest.navigation.some((item) => item.builtin === "home"),
       "navigation has the home page",
     );
+    const songs = manifest.navigation.find((item) => item.page === "songs");
+    assert.ok(songs, "navigation has the Songs page");
+    assert.equal(songs.title, "Songs", "the Songs page is titled");
+    assert.equal(songs.icon, "note", "the Songs page uses the note icon");
+    assert.equal(manifest.navigation[1], songs, "Songs comes right after Home in the sidebar");
   });
 });
 
@@ -248,6 +253,11 @@ describe("locales/zh-CN.json", () => {
     // A locale that only echoes English is not a translation for the UI texts.
     const changed = Object.entries(locale).filter(([source, translated]) => source !== translated);
     assert.ok(changed.length >= 3, `the locale translates the UI, not only copies English (${changed.length} changed)`);
+
+    // The Songs page's own texts, which aren't in plugin.json but are displayed.
+    for (const text of ["Songs", "All songs", "No songs in the library", "Previous page", "Next page"]) {
+      need(text, `the Songs page text ${JSON.stringify(text)}`);
+    }
   });
 
   test("only the languages the app speaks", () => {

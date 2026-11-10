@@ -30,7 +30,10 @@ the repository `mygo-music-navidrome`.
   `plugin.json`, `index.js` and `locales/`, with verification of the archive
   layout and a platform-agnostic asset name (`amorphobia-navidrome-<version>.zip`).
 - Home page with random picks, recently added, recently played and most played
-  albums, favourite albums and artists, and playlists. Random picks use
+  albums, favourite albums and artists, and playlists.
+- A Songs page with the whole library. On Navidrome it is sorted by title
+  through Navidrome's native API (detected automatically); other Subsonic
+  servers get the library in the server's natural order. Random picks use
   Navidrome's `getRandomSongs(size=20)`, a uniform random sample of the whole
   library that is not personalized; MyGo Music keeps the loaded Home page for
   about an hour.

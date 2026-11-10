@@ -59,6 +59,8 @@ async function exerciseTranslations() {
     await swallow(plugin.home());
     await swallow(plugin.browse({ page: "albums" }));
     await swallow(plugin.browse({ page: "albums:newest:0" }));
+    await swallow(plugin.browse({ page: "songs" }));
+    await swallow(plugin.browse({ page: "songs:100" }));
     await swallow(plugin.browse({ page: "artists" }));
     await swallow(plugin.browse({ page: "playlists" }));
     for (const kind of ["tracks", "albums", "artists", "playlists"]) {
@@ -214,6 +216,7 @@ async function exerciseTranslations() {
     const harness = await loadPlugin({ db });
     await swallow(harness.plugin.home());
     await swallow(harness.plugin.browse({ page: "albums:newest:0" }));
+    await swallow(harness.plugin.browse({ page: "songs" }));
     await swallow(harness.plugin.browse({ page: "artists" }));
     await swallow(harness.plugin.browse({ page: "playlists" }));
     record(harness);
@@ -251,6 +254,10 @@ describe("translations", { skip: bundleSkip() }, () => {
       "You haven't made a playlist yet",
       "No artists in the library",
       "No albums here",
+      "Songs",
+      "All songs",
+      "No songs in the library",
+      "Previous page",
       "That song position doesn't exist in this playlist",
       "This playlist is too long to reorder from MyGo Music; reorder it in Navidrome",
       "The server made the playlist but didn't return it; reopen the playlists page",
@@ -288,6 +295,12 @@ describe("translations", { skip: bundleSkip() }, () => {
     assert.ok(!titles.includes("Random picks"), "no English section titles are left");
     assert.ok(tCalls.includes("Random picks"), "host.t was asked for the English key");
     assert.equal(home.sections[0].tracks[0].name, "Second Wind", "track names are data, not UI: they stay as the server has them");
+
+    const songs = await plugin.browse({ page: "songs" });
+    assert.equal(songs.title, "歌曲", "the Songs page title is translated");
+    assert.equal(songs.sections[0].title, "全部歌曲", "and its section title");
+    const older = await plugin.browse({ page: "songs:100" });
+    assert.equal(older.sections[0].links[0].title, "上一页", "and the Previous page link");
   });
 
   test("failure messages are Chinese with zh-CN", async () => {

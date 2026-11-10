@@ -11,6 +11,7 @@ a header-based reverse proxy.
 
 - Home with random picks, recently added and most played albums, favourite
   albums and artists, and playlists.
+- A Songs page with the whole library.
 - Browse albums, artists and playlists.
 - Search tracks, albums, artists and playlists, with suggestions while typing.
 - Liked songs, saved albums and followed artists.

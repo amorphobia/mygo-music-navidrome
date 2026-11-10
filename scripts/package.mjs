@@ -17,12 +17,17 @@
  * root detection finds plugin.json immediately (it also tolerates a single
  * top-level folder, but root is preferred).
  *
- * Output: dist/amorphobia-navidrome-<version>.zip
- * Asset name: amorphobia-navidrome-<version>.zip
+ * Output: dist/<id>-<version>.zip, where <id> is the manifest id:
+ *   npm run package          → amorphobia-navidrome-dev-<version>.zip
+ *   npm run package:release  → amorphobia-navidrome-<version>.zip
+ * The dev archive changes only the packaged plugin.json's id; the repository
+ * manifest and the release archive keep the published id.
+ *
+ * Asset name: <id>-<version>.zip
  *   The filename must not contain a platform word (darwin, linux, windows,
  *   macos, osx, win32, ...) so MyGo Music treats the asset as universal.
  *
- * Usage: node scripts/package.mjs
+ * Usage: node scripts/package.mjs [--release]
  */
 
 import {
@@ -39,6 +44,8 @@ import { deflateRawSync, inflateRawSync } from "node:zlib";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST_DIR = path.join(ROOT, "dist");
+/** A local build gets its own id, so it can be installed next to the release one. */
+const RELEASE = process.argv.includes("--release");
 const PLATFORM_WORDS =
   /(?:^|[-_.])(darwin|linux|windows|win32|win64|macos|osx|arm64|amd64|x86_64|x64|armv[0-9]*|aarch64)(?:[-_.]|$)/i;
 
@@ -275,7 +282,10 @@ for (const field of ["id", "name", "version", "main"]) {
 
 const version = manifest.version;
 const mainFile = manifest.main.replace(/^\.\//, "");
-const zipName = `${manifest.id}-${version}.zip`;
+const packagedId = RELEASE ? manifest.id : `${manifest.id}-dev`;
+const packagedManifest = { ...manifest, id: packagedId };
+const packagedManifestData = Buffer.from(`${JSON.stringify(packagedManifest, null, 2)}\n`, "utf8");
+const zipName = `${packagedId}-${version}.zip`;
 const zipPath = path.join(DIST_DIR, zipName);
 
 const files = [];
@@ -293,7 +303,7 @@ for (const name of ["plugin.json", mainFile]) {
   }
   files.push({
     name,
-    data: readFileSync(absolute),
+    data: name === "plugin.json" ? packagedManifestData : readFileSync(absolute),
     mtimeMs: statSync(absolute).mtimeMs,
   });
 }
@@ -352,9 +362,9 @@ if (root !== ".") {
 }
 
 const manifestEntry = entries.find((entry) => entry.name === `${root === "." ? "" : `${root}/`}plugin.json`);
-const packagedManifest = JSON.parse(readZipEntry(check, manifestEntry).toString("utf8"));
-if (packagedManifest.id !== manifest.id || packagedManifest.version !== manifest.version) {
-  fail("The packaged plugin.json does not match the repository manifest.");
+const packagedManifestInZip = JSON.parse(readZipEntry(check, manifestEntry).toString("utf8"));
+if (packagedManifestInZip.id !== packagedId || packagedManifestInZip.version !== manifest.version) {
+  fail("The packaged plugin.json does not match the manifest and the build mode.");
 }
 
 const mainEntry = entries.find(
@@ -385,13 +395,14 @@ for (const entry of entries) {
 /* ---- Report ---- */
 
 const sizeKb = (zip.length / 1024).toFixed(1);
-console.log(`\n  ${manifest.name} ${version}`);
+console.log(`\n  ${manifest.name} ${version} (${RELEASE ? "release" : "development"} build)`);
 console.log(`  Packaged ${entries.length} files into ${path.relative(ROOT, zipPath)} (${sizeKb} KiB)`);
 for (const entry of entries) {
   console.log(`    • ${entry.name}`);
 }
 console.log(`  Verified: plugin.json is at the plugin root (${root === "." ? "archive root" : `${root}/`}).`);
 console.log(`  Verified: declared entry point ${mainFile} and ${localeFiles.length} locale file(s) are present.`);
+console.log(`  Plugin id in the archive: ${packagedId}${RELEASE ? "" : " (change it back with --release)"}`);
 console.log(`  Asset name: ${zipName}`);
 console.log(
   "  The asset name contains no platform word, so MyGo Music treats it as a universal plugin archive.\n",

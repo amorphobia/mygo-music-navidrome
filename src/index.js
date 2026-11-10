@@ -13,6 +13,7 @@
 import { forgetMediaAuth, readConfig, requireAccount } from "./config.js";
 import { forgetRecent, invalidateCaches } from "./cache.js";
 import { forgetTrackShapes } from "./mappers.js";
+import { forgetNativeSession, nativeSession, warmNativeSession } from "./navidrome.js";
 import { ping } from "./subsonic.js";
 
 export {
@@ -47,14 +48,16 @@ export function account() {
   if (!config.server || !config.username || !config.password) return null;
   // Navidrome has no session to check: a filled-in account is a signed-in one.
   // A wrong password shows when the first request is refused, which opens the
-  // settings with what the server said.
+  // settings with what the server said. Deciding here whether the server is
+  // Navidrome saves every later page from asking again.
+  warmNativeSession(config);
   return { id: config.username, name: config.username };
 }
 
-/** Checks the main address and the account, answering the account when it works. */
+/** Checks the server and the account, answering the account when it works. */
 export async function signIn() {
   const config = requireAccount();
-  await ping();
+  await Promise.all([ping(), nativeSession(config)]);
   return { id: config.username, name: config.username };
 }
 
@@ -64,6 +67,7 @@ export function signOut() {
   forgetMediaAuth();
   forgetTrackShapes();
   forgetRecent();
+  forgetNativeSession();
   return undefined;
 }
 
@@ -72,6 +76,7 @@ export function setSetting({ key }) {
   invalidateCaches();
   forgetMediaAuth();
   forgetTrackShapes();
+  forgetNativeSession();
   if (key === "server" || key === "username" || key === "password") forgetRecent();
   return undefined;
 }
